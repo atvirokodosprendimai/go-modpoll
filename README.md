@@ -30,15 +30,17 @@ tool polls Modbus TCP/UDP/RTU/ASCII devices and forwards the decoded data over
 
 ### Pre-built binaries
 
-A `release` GitHub Actions workflow builds binaries for `linux/amd64`,
+The `release` GitHub Actions workflow builds binaries for `linux/amd64`,
 `linux/arm64`, `linux/arm` (Raspberry Pi 2+), `darwin/amd64`, `darwin/arm64`
 and `windows/amd64`.
 
-- **Tag pushes (`vX.Y.Z`)** publish all archives to the matching GitHub
-  Release alongside a `SHA256SUMS` file.
-- **Manual runs** (`workflow_dispatch`) store the archives as workflow
-  artifacts on the run page — handy for grabbing a build off `main` without
-  cutting a release.
+- **Tag pushes (`vX.Y.Z`)** first run the `docker` workflow; once it finishes
+  successfully `release` is triggered (via `workflow_run`) and publishes all
+  archives to the matching GitHub Release alongside a `SHA256SUMS` file. This
+  serialisation keeps the two workflows from racing for runner capacity.
+- **Manual runs** (`workflow_dispatch`) build the matrix on demand and store
+  the archives as workflow artifacts on the run page — handy for grabbing a
+  build off `main` without cutting a release.
 
 ```bash
 # Linux amd64 example

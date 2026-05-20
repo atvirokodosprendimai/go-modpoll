@@ -2,14 +2,14 @@ name: release
 
 # Build downloadable binaries for all supported platforms.
 #
-# - On any `vX.Y.Z` tag push: builds the matrix, then publishes a GitHub
-#   Release with all archives plus a SHA256SUMS checksum file.
-# - On manual dispatch (workflow_dispatch): just builds the matrix and stores
-#   the archives as workflow artifacts (downloadable from the run page).
+# Triggered after the `docker` workflow completes successfully on a `vX.Y.Z`
+# tag, so binaries are built only when the matching container image is also
+# published. `workflow_dispatch` runs the build matrix on demand (manual
+# downloads off the run page; no GitHub Release is created).
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  workflow_run:
+    workflows: ['docker']
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +18,17 @@ permissions:
 jobs:
   build:
     name: build ${{ matrix.os }}/${{ matrix.arch }}
+    # Run only when:
+    #   - it's a manual dispatch, OR
+    #   - the docker workflow finished successfully on a tag named v*.
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          startsWith(github.event.workflow_run.head_branch, 'v')
+        )
+      }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -30,26 +41,31 @@ jobs:
           - { os: darwin,  arch: arm64 }
           - { os: windows, arch: amd64 }
     steps:
+      - name: Resolve ref and version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            checkout_ref="${{ github.event.workflow_run.head_sha }}"
+            version="${{ github.event.workflow_run.head_branch }}"
+          else
+            checkout_ref="${{ github.sha }}"
+            version="dev-$(echo "${{ github.sha }}" | cut -c1-7)"
+          fi
+          echo "ref=${checkout_ref}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Building ${version} from ${checkout_ref}"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: new/go.mod
           cache-dependency-path: new/go.sum
-
-      - name: Determine version
-        id: ver
-        shell: bash
-        run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            version="${GITHUB_REF_NAME}"
-          else
-            version="dev-$(git rev-parse --short HEAD)"
-          fi
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "Building version: ${version}"
 
       - name: Build binary
         working-directory: new
@@ -95,7 +111,9 @@ jobs:
   release:
     name: publish GitHub Release
     needs: build
-    if: github.ref_type == 'tag'
+    # Only publish a Release for the workflow_run path (tag-driven). Manual
+    # dispatch leaves the binaries as run artifacts only.
+    if: github.event_name == 'workflow_run'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -116,6 +134,7 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.workflow_run.head_branch }}
           files: artifacts/*
           generate_release_notes: true
           fail_on_unmatched_files: true
