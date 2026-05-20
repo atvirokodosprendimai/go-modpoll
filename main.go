@@ -68,6 +68,10 @@ func flags() []cli.Flag {
 			Usage: "Modbus response timeout in seconds"},
 		&cli.StringFlag{Name: "export", Aliases: []string{"o"},
 			Usage: "Export decoded data to this JSON file each cycle"},
+		&cli.StringFlag{Name: "export-http",
+			Usage: "POST decoded data as JSON to this URL each cycle"},
+		&cli.FloatFlag{Name: "export-http-timeout", Value: 10.0,
+			Usage: "Timeout for --export-http POST in seconds"},
 		&cli.FloatFlag{Name: "diagnostics-rate", Value: 0,
 			Usage: "Seconds between diagnostics publishes (0 disables)"},
 		&cli.BoolFlag{Name: "autoremove",
@@ -168,7 +172,16 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	once := cmd.Bool("once")
-	err = mainLoop(runCtx, log, svc, pub, opts, rate, diagnosticsRate, once, cmd.String("export"))
+
+	var httpPoster *exporter.HTTPPoster
+	if url := cmd.String("export-http"); url != "" {
+		timeout := time.Duration(cmd.Float("export-http-timeout") * float64(time.Second))
+		httpPoster = exporter.NewHTTPPoster(url, timeout)
+		log.Info("http export enabled", "url", url, "timeout", timeout)
+	}
+
+	err = mainLoop(runCtx, log, svc, pub, opts, rate, diagnosticsRate, once,
+		cmd.String("export"), httpPoster)
 
 	if pub != nil {
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -187,6 +200,7 @@ func mainLoop(
 	rate, diagRate time.Duration,
 	once bool,
 	exportPath string,
+	httpPoster *exporter.HTTPPoster,
 ) error {
 	ticker := time.NewTicker(rate)
 	defer ticker.Stop()
@@ -215,13 +229,18 @@ func mainLoop(
 		if pub != nil {
 			svc.PublishData(now, false)
 		}
+		ts := time.Time{}
+		if opts.WithTimestamp {
+			ts = now
+		}
 		if exportPath != "" {
-			ts := time.Time{}
-			if opts.WithTimestamp {
-				ts = now
-			}
 			if err := exporter.Export(exportPath, svc.Devices(), ts); err != nil {
 				log.Warn("export failed", "err", err)
+			}
+		}
+		if httpPoster != nil {
+			if err := httpPoster.Post(ctx, svc.Devices(), ts); err != nil {
+				log.Warn("http export failed", "err", err)
 			}
 		}
 	}

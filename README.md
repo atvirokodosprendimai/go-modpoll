@@ -51,6 +51,8 @@ subject helpers.
 | `--interval`                 | `0.5`    | Pause (seconds) between two pollers in the same cycle.  |
 | `--delay`                    | `0`      | Seconds to wait before the first poll.                  |
 | `--export, -o`               | —        | Write decoded data to this JSON file each cycle.        |
+| `--export-http`              | —        | POST decoded data as JSON to this URL each cycle.       |
+| `--export-http-timeout`      | `10.0`   | Timeout (seconds) for `--export-http` POST requests.    |
 | `--timestamp`                | `false`  | Add an RFC3339 timestamp to every payload/export row.   |
 | `--diagnostics-rate`         | `0`      | Seconds between diagnostics publishes (0 disables).     |
 | `--autoremove`               | `false`  | Disable a poller after 3 consecutive failures.          |
@@ -332,6 +334,35 @@ of the process lifetime.
   --export data.json \
   --config examples/modsim.csv
 ```
+
+### POST decoded data to an HTTP endpoint
+
+Each successful poll cycle results in one `POST` of the same JSON snapshot
+that `--export` would write to disk. Non-2xx responses are logged as warnings
+(the loop keeps running).
+
+```bash
+./modpoll --tcp modsim.topmaker.net \
+  --export-http https://ingest.example.com/api/modpoll \
+  --export-http-timeout 5 \
+  --timestamp \
+  --config examples/modsim.csv
+```
+
+Body shape (compact JSON):
+
+```json
+{
+  "modsim01": {
+    "holding_reg01": 1234,
+    "holding_reg13": 3.14,
+    "timestamp": "2026-05-20T08:42:11.123Z"
+  }
+}
+```
+
+`--export` and `--export-http` can be set together — they share the same
+snapshot.
 
 ### Load multiple config files / multiple devices
 
