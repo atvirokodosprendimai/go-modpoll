@@ -64,11 +64,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: new/go.mod
-          cache-dependency-path: new/go.sum
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
 
       - name: Build binary
-        working-directory: new
+        working-directory: .
         env:
           CGO_ENABLED: 0
           GOOS: ${{ matrix.os }}
