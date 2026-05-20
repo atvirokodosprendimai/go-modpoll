@@ -1,0 +1,121 @@
+name: release
+
+# Build downloadable binaries for all supported platforms.
+#
+# - On any `vX.Y.Z` tag push: builds the matrix, then publishes a GitHub
+#   Release with all archives plus a SHA256SUMS checksum file.
+# - On manual dispatch (workflow_dispatch): just builds the matrix and stores
+#   the archives as workflow artifacts (downloadable from the run page).
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux,   arch: amd64 }
+          - { os: linux,   arch: arm64 }
+          - { os: linux,   arch: arm,   goarm: '7' }
+          - { os: darwin,  arch: amd64 }
+          - { os: darwin,  arch: arm64 }
+          - { os: windows, arch: amd64 }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: new/go.mod
+          cache-dependency-path: new/go.sum
+
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Building version: ${version}"
+
+      - name: Build binary
+        working-directory: new
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          ext=""
+          [ "$GOOS" = "windows" ] && ext=".exe"
+          out_dir="${GITHUB_WORKSPACE}/dist/modpoll-${GOOS}-${GOARCH}"
+          mkdir -p "$out_dir"
+          go build -trimpath \
+            -ldflags="-s -w -X main.Version=${{ steps.ver.outputs.version }}" \
+            -o "$out_dir/modpoll$ext" .
+          cp README.md "$out_dir/" || true
+          cp LICENSE "$out_dir/" || true
+
+      - name: Package archive
+        id: pkg
+        shell: bash
+        run: |
+          base="modpoll_${{ steps.ver.outputs.version }}_${{ matrix.os }}_${{ matrix.arch }}"
+          src_dir="modpoll-${{ matrix.os }}-${{ matrix.arch }}"
+          mkdir -p artifacts
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            (cd dist && zip -qr "../artifacts/${base}.zip" "${src_dir}")
+            echo "archive=${base}.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -czf "artifacts/${base}.tar.gz" -C dist "${src_dir}"
+            echo "archive=${base}.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pkg.outputs.archive }}
+          path: artifacts/${{ steps.pkg.outputs.archive }}
+          retention-days: 30
+          if-no-files-found: error
+
+  release:
+    name: publish GitHub Release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        working-directory: artifacts
+        run: |
+          ls -1
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

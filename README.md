@@ -26,15 +26,37 @@ tool polls Modbus TCP/UDP/RTU/ASCII devices and forwards the decoded data over
 - Optional local JSON export, periodic diagnostics, daemon mode for headless
   use.
 
-## Build
+## Install
+
+### Pre-built binaries
+
+A `release` GitHub Actions workflow builds binaries for `linux/amd64`,
+`linux/arm64`, `linux/arm` (Raspberry Pi 2+), `darwin/amd64`, `darwin/arm64`
+and `windows/amd64`.
+
+- **Tag pushes (`vX.Y.Z`)** publish all archives to the matching GitHub
+  Release alongside a `SHA256SUMS` file.
+- **Manual runs** (`workflow_dispatch`) store the archives as workflow
+  artifacts on the run page — handy for grabbing a build off `main` without
+  cutting a release.
+
+```bash
+# Linux amd64 example
+curl -L -o modpoll.tar.gz \
+  https://github.com/atvirokodosprendimai/go-modpoll/releases/latest/download/modpoll_vX.Y.Z_linux_amd64.tar.gz
+tar -xzf modpoll.tar.gz
+./modpoll-linux-amd64/modpoll --version
+```
+
+### From source
 
 ```bash
 cd new/
 go build -o modpoll .
 ```
 
-`go test ./...` runs the unit tests for decoding, the CSV loader, and the
-subject helpers.
+`go test ./...` runs the unit tests for decoding, the CSV loader, the
+subject helpers and the HTTP exporter.
 
 ## CLI reference
 
