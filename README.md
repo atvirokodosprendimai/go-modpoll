@@ -4,6 +4,14 @@ A Go rewrite of [gavinying/modpoll](https://github.com/gavinying/modpoll). The
 tool polls Modbus TCP/UDP/RTU/ASCII devices and forwards the decoded data over
 [NATS](https://nats.io) subjects (the original tool used MQTT topics).
 
+## Architecture
+
+| Diagram | What it shows |
+| ------- | ------------- |
+| ![System architecture](docs/architecture.svg) | Modbus devices on the left, the modpoll process in the middle, NATS and consumers on the right. |
+| ![Package layering](docs/packages.svg) | DDD layering: `domain` is pure Go and depends on nothing; adapters wrap I/O; `main.go` is the entry point. |
+| ![Flow](docs/flow.svg) | One poll cycle plus an inbound write-command, as a sequence across the lanes. |
+
 ## Features
 
 - Modbus master over TCP, UDP, RTU and ASCII (framer auto-selected per

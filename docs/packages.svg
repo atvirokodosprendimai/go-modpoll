@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#495057"/>
+    </marker>
+    <style>
+      .title { font-size: 20px; font-weight: 600; fill: #212529; }
+      .subtitle { font-size: 12px; fill: #6c757d; }
+      .pkg { stroke-width: 1.5; }
+      .pkg-name { font-size: 14px; font-weight: 600; fill: #212529; }
+      .pkg-files { font-size: 11px; fill: #495057; }
+      .core { fill: #d3f9d8; stroke: #2f9e44; }
+      .adapter { fill: #fff3bf; stroke: #f59f00; }
+      .entry { fill: #e7f5ff; stroke: #1c7ed6; }
+      .ext { fill: #f1f3f5; stroke: #868e96; }
+      .ring { fill: none; stroke-dasharray: 5 4; }
+      .ring-label { font-size: 11px; font-weight: 600; letter-spacing: 0.6px; fill: #6c757d; }
+      .dep { fill: none; stroke: #495057; stroke-width: 1.4; }
+      .legend { font-size: 11px; fill: #495057; }
+    </style>
+  </defs>
+
+  <text x="480" y="32" text-anchor="middle" class="title">Package layering (DDD)</text>
+  <text x="480" y="52" text-anchor="middle" class="subtitle">Arrows point inward — outer layers depend on inner ones; the domain depends on nothing.</text>
+
+  <!-- Concentric rings -->
+  <circle cx="480" cy="300" r="220" class="ring" stroke="#1c7ed6"/>
+  <circle cx="480" cy="300" r="155" class="ring" stroke="#f59f00"/>
+  <circle cx="480" cy="300" r="80"  class="ring" stroke="#2f9e44"/>
+
+  <text x="480" y="92"  text-anchor="middle" class="ring-label">ENTRY  (cmd)</text>
+  <text x="480" y="158" text-anchor="middle" class="ring-label">ADAPTERS  (I/O)</text>
+  <text x="480" y="232" text-anchor="middle" class="ring-label">DOMAIN  (pure Go)</text>
+
+  <!-- Domain core -->
+  <g>
+    <rect x="400" y="262" width="160" height="76" rx="8" class="pkg core"/>
+    <text x="480" y="287" text-anchor="middle" class="pkg-name">internal/domain</text>
+    <text x="480" y="305" text-anchor="middle" class="pkg-files">Device · Poller · Reference</text>
+    <text x="480" y="321" text-anchor="middle" class="pkg-files">Endian · DataType · Decoder</text>
+  </g>
+
+  <!-- Adapters (5 around the core) -->
+  <g>
+    <!-- config (top-left) -->
+    <rect x="245" y="190" width="170" height="62" rx="8" class="pkg adapter"/>
+    <text x="330" y="213" text-anchor="middle" class="pkg-name">internal/config</text>
+    <text x="330" y="233" text-anchor="middle" class="pkg-files">CSV loader (file/URL)</text>
+    <path d="M408 240 L440 280" class="dep" marker-end="url(#arr2)"/>
+
+    <!-- modbus (top-right) -->
+    <rect x="545" y="190" width="170" height="62" rx="8" class="pkg adapter"/>
+    <text x="630" y="213" text-anchor="middle" class="pkg-name">internal/modbus</text>
+    <text x="630" y="233" text-anchor="middle" class="pkg-files">simonvetter/modbus wrapper</text>
+    <path d="M552 240 L520 280" class="dep" marker-end="url(#arr2)"/>
+
+    <!-- poller (left) -->
+    <rect x="170" y="294" width="170" height="62" rx="8" class="pkg adapter"/>
+    <text x="255" y="317" text-anchor="middle" class="pkg-name">internal/poller</text>
+    <text x="255" y="337" text-anchor="middle" class="pkg-files">Service · loop · diagnostics</text>
+    <path d="M340 318 L405 305" class="dep" marker-end="url(#arr2)"/>
+
+    <!-- messaging (right) -->
+    <rect x="620" y="294" width="170" height="62" rx="8" class="pkg adapter"/>
+    <text x="705" y="317" text-anchor="middle" class="pkg-name">internal/messaging</text>
+    <text x="705" y="337" text-anchor="middle" class="pkg-files">NATS pub/sub · subjects</text>
+    <path d="M620 318 L560 305" class="dep" marker-end="url(#arr2)"/>
+
+    <!-- exporter (bottom) -->
+    <rect x="395" y="380" width="170" height="62" rx="8" class="pkg adapter"/>
+    <text x="480" y="403" text-anchor="middle" class="pkg-name">internal/exporter</text>
+    <text x="480" y="423" text-anchor="middle" class="pkg-files">JSON snapshot writer</text>
+    <path d="M480 378 L480 342" class="dep" marker-end="url(#arr2)"/>
+  </g>
+
+  <!-- Entry point -->
+  <g>
+    <rect x="395" y="76" width="170" height="56" rx="8" class="pkg entry"/>
+    <text x="480" y="100" text-anchor="middle" class="pkg-name">main.go</text>
+    <text x="480" y="118" text-anchor="middle" class="pkg-files">urfave/cli/v3 · run loop</text>
+    <path d="M380 116 C 250 140 220 220 245 222" class="dep" marker-end="url(#arr2)"/>
+    <path d="M580 116 C 710 140 740 220 715 222" class="dep" marker-end="url(#arr2)"/>
+    <path d="M430 132 C 380 200 270 270 250 305" class="dep" marker-end="url(#arr2)"/>
+    <path d="M530 132 C 580 200 690 270 705 305" class="dep" marker-end="url(#arr2)"/>
+  </g>
+
+  <!-- External deps annotation -->
+  <g>
+    <rect x="20" y="76" width="150" height="80" rx="6" class="pkg ext"/>
+    <text x="95" y="100" text-anchor="middle" class="pkg-name">external libs</text>
+    <text x="95" y="120" text-anchor="middle" class="pkg-files">nats.io/nats.go</text>
+    <text x="95" y="135" text-anchor="middle" class="pkg-files">simonvetter/modbus</text>
+    <text x="95" y="150" text-anchor="middle" class="pkg-files">urfave/cli/v3</text>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(20,510)">
+    <rect width="14" height="14" class="pkg entry"/>
+    <text x="22" y="12" class="legend">entry point (CLI)</text>
+    <rect x="140" width="14" height="14" class="pkg adapter"/>
+    <text x="162" y="12" class="legend">adapter (I/O)</text>
+    <rect x="270" width="14" height="14" class="pkg core"/>
+    <text x="292" y="12" class="legend">domain (pure)</text>
+    <rect x="400" width="14" height="14" class="pkg ext"/>
+    <text x="422" y="12" class="legend">external dependency</text>
+  </g>
+</svg>

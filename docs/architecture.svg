@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#495057"/>
+    </marker>
+    <style>
+      .title { font-size: 20px; font-weight: 600; fill: #212529; }
+      .group { fill: #f8f9fa; stroke: #adb5bd; stroke-dasharray: 4 3; }
+      .group-label { font-size: 12px; font-weight: 600; fill: #6c757d; letter-spacing: 0.5px; }
+      .device { fill: #e7f5ff; stroke: #1c7ed6; }
+      .adapter { fill: #fff3bf; stroke: #f59f00; }
+      .core { fill: #d3f9d8; stroke: #2f9e44; }
+      .external { fill: #f1f3f5; stroke: #495057; }
+      .label { fill: #212529; }
+      .sublabel { font-size: 11px; fill: #495057; }
+      .edge { fill: none; stroke: #495057; stroke-width: 1.5; }
+      .edge-dashed { fill: none; stroke: #868e96; stroke-width: 1.5; stroke-dasharray: 5 4; }
+      .edge-label { font-size: 11px; fill: #495057; }
+    </style>
+  </defs>
+
+  <text x="480" y="32" text-anchor="middle" class="title">modpoll — system architecture</text>
+
+  <!-- Modbus devices column -->
+  <g>
+    <rect x="20" y="70" width="220" height="380" rx="8" class="group"/>
+    <text x="40" y="92" class="group-label">MODBUS DEVICES</text>
+
+    <rect x="40" y="110" width="180" height="56" rx="6" class="device"/>
+    <text x="130" y="132" text-anchor="middle" class="label">TCP device</text>
+    <text x="130" y="150" text-anchor="middle" class="sublabel">192.168.x.x:502</text>
+
+    <rect x="40" y="184" width="180" height="56" rx="6" class="device"/>
+    <text x="130" y="206" text-anchor="middle" class="label">UDP device</text>
+    <text x="130" y="224" text-anchor="middle" class="sublabel">connectionless</text>
+
+    <rect x="40" y="258" width="180" height="56" rx="6" class="device"/>
+    <text x="130" y="280" text-anchor="middle" class="label">Serial RTU / ASCII</text>
+    <text x="130" y="298" text-anchor="middle" class="sublabel">/dev/ttyUSB0, rfc2217</text>
+
+    <rect x="40" y="332" width="180" height="56" rx="6" class="device"/>
+    <text x="130" y="354" text-anchor="middle" class="label">Modbus simulator</text>
+    <text x="130" y="372" text-anchor="middle" class="sublabel">modsim.topmaker.net</text>
+  </g>
+
+  <!-- modpoll process box -->
+  <g>
+    <rect x="320" y="70" width="320" height="380" rx="10" fill="#fff" stroke="#0d6efd" stroke-width="2"/>
+    <text x="480" y="92" text-anchor="middle" class="group-label" fill="#0d6efd">MODPOLL PROCESS</text>
+
+    <rect x="345" y="112" width="270" height="58" rx="6" class="adapter"/>
+    <text x="480" y="134" text-anchor="middle" class="label">internal/modbus — Client</text>
+    <text x="480" y="152" text-anchor="middle" class="sublabel">simonvetter/modbus wrapper</text>
+
+    <rect x="345" y="184" width="270" height="58" rx="6" class="core"/>
+    <text x="480" y="206" text-anchor="middle" class="label">internal/domain — Decoder &amp; aggregates</text>
+    <text x="480" y="224" text-anchor="middle" class="sublabel">Device · Poller · Reference · Endian</text>
+
+    <rect x="345" y="256" width="270" height="58" rx="6" class="adapter"/>
+    <text x="480" y="278" text-anchor="middle" class="label">internal/poller — Service</text>
+    <text x="480" y="296" text-anchor="middle" class="sublabel">polling loop · diagnostics · scaling</text>
+
+    <rect x="345" y="328" width="270" height="58" rx="6" class="adapter"/>
+    <text x="480" y="350" text-anchor="middle" class="label">internal/messaging — Handler</text>
+    <text x="480" y="368" text-anchor="middle" class="sublabel">nats.go pub/sub · subject routing</text>
+
+    <rect x="345" y="396" width="130" height="40" rx="6" class="adapter"/>
+    <text x="410" y="421" text-anchor="middle" class="label">config (CSV)</text>
+
+    <rect x="485" y="396" width="130" height="40" rx="6" class="adapter"/>
+    <text x="550" y="421" text-anchor="middle" class="label">exporter (JSON)</text>
+  </g>
+
+  <!-- NATS / consumers column -->
+  <g>
+    <rect x="720" y="70" width="220" height="380" rx="8" class="group"/>
+    <text x="740" y="92" class="group-label">NATS WORLD</text>
+
+    <rect x="740" y="110" width="180" height="76" rx="6" class="external" fill="#e7f5ff" stroke="#1971c2"/>
+    <text x="830" y="134" text-anchor="middle" class="label">NATS server</text>
+    <text x="830" y="152" text-anchor="middle" class="sublabel">nats://host:4222</text>
+    <text x="830" y="170" text-anchor="middle" class="sublabel">JetStream optional</text>
+
+    <rect x="740" y="200" width="180" height="56" rx="6" class="external"/>
+    <text x="830" y="222" text-anchor="middle" class="label">Data subscribers</text>
+    <text x="830" y="240" text-anchor="middle" class="sublabel">modpoll.*.data</text>
+
+    <rect x="740" y="270" width="180" height="56" rx="6" class="external"/>
+    <text x="830" y="292" text-anchor="middle" class="label">Diagnostics subs</text>
+    <text x="830" y="310" text-anchor="middle" class="sublabel">modpoll.*.diagnostics</text>
+
+    <rect x="740" y="340" width="180" height="56" rx="6" class="external"/>
+    <text x="830" y="362" text-anchor="middle" class="label">Writers (operators)</text>
+    <text x="830" y="380" text-anchor="middle" class="sublabel">publish on .set</text>
+  </g>
+
+  <!-- Edges Modbus -> modpoll (modbus client) -->
+  <path d="M220 138 H340" class="edge" marker-end="url(#arr)"/>
+  <path d="M220 212 H340" class="edge" marker-end="url(#arr)"/>
+  <path d="M220 286 H340" class="edge" marker-end="url(#arr)"/>
+  <path d="M220 360 C 280 360 280 145 340 145" class="edge-dashed"/>
+  <text x="245" y="128" class="edge-label">FC 1/2/3/4 reads · FC 5/6/16 writes</text>
+
+  <!-- Edges modpoll -> NATS -->
+  <path d="M620 220 H740" class="edge" marker-end="url(#arr)"/>
+  <text x="630" y="212" class="edge-label">publish JSON</text>
+
+  <path d="M620 290 H740" class="edge" marker-end="url(#arr)"/>
+  <text x="630" y="282" class="edge-label">publish diagnostics</text>
+
+  <path d="M740 368 H620" class="edge" marker-end="url(#arr)"/>
+  <text x="630" y="358" class="edge-label">write commands</text>
+
+  <!-- Footer legend -->
+  <g transform="translate(20,470)">
+    <rect width="14" height="14" class="device"/><text x="22" y="12" class="sublabel">Modbus device</text>
+    <rect x="120" width="14" height="14" class="adapter"/><text x="142" y="12" class="sublabel">adapter (I/O)</text>
+    <rect x="240" width="14" height="14" class="core"/><text x="262" y="12" class="sublabel">domain core (pure)</text>
+    <rect x="400" width="14" height="14" class="external"/><text x="422" y="12" class="sublabel">external system</text>
+  </g>
+</svg>

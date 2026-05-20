@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13">
+  <defs>
+    <marker id="seqarr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#495057"/>
+    </marker>
+    <marker id="seqarr-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#1c7ed6"/>
+    </marker>
+    <style>
+      .title { font-size: 20px; font-weight: 600; fill: #212529; }
+      .subtitle { font-size: 12px; fill: #6c757d; }
+      .lane-label { font-size: 13px; font-weight: 600; fill: #212529; }
+      .lane-sub { font-size: 11px; fill: #6c757d; }
+      .lane { fill: #fff; stroke: #adb5bd; }
+      .lifeline { stroke: #ced4da; stroke-dasharray: 4 4; }
+      .msg { stroke: #495057; fill: none; stroke-width: 1.4; }
+      .msg-blue { stroke: #1c7ed6; fill: none; stroke-width: 1.4; }
+      .msg-label { font-size: 11px; fill: #212529; }
+      .msg-label-blue { font-size: 11px; fill: #1864ab; }
+      .phase { font-size: 11px; font-weight: 600; fill: #495057; letter-spacing: 0.6px; }
+      .phase-bg { fill: #f1f3f5; stroke: none; }
+      .activation { fill: #e7f5ff; stroke: #1c7ed6; }
+      .note { fill: #fff9db; stroke: #f59f00; }
+      .note-text { font-size: 11px; fill: #5c3a00; }
+    </style>
+  </defs>
+
+  <text x="480" y="32" text-anchor="middle" class="title">Poll cycle &amp; write-command flow</text>
+  <text x="480" y="52" text-anchor="middle" class="subtitle">One ticker fires the read path; an inbound NATS message fires the write path.</text>
+
+  <!-- Lane headers -->
+  <g>
+    <rect x="40"  y="74" width="130" height="40" rx="6" class="lane"/>
+    <text x="105" y="92" text-anchor="middle" class="lane-label">main</text>
+    <text x="105" y="106" text-anchor="middle" class="lane-sub">CLI · run loop</text>
+
+    <rect x="200" y="74" width="150" height="40" rx="6" class="lane"/>
+    <text x="275" y="92" text-anchor="middle" class="lane-label">poller.Service</text>
+    <text x="275" y="106" text-anchor="middle" class="lane-sub">orchestrator</text>
+
+    <rect x="380" y="74" width="150" height="40" rx="6" class="lane"/>
+    <text x="455" y="92" text-anchor="middle" class="lane-label">modbus.Client</text>
+    <text x="455" y="106" text-anchor="middle" class="lane-sub">simonvetter wrapper</text>
+
+    <rect x="560" y="74" width="150" height="40" rx="6" class="lane"/>
+    <text x="635" y="92" text-anchor="middle" class="lane-label">domain.Decoder</text>
+    <text x="635" y="106" text-anchor="middle" class="lane-sub">pure value parsing</text>
+
+    <rect x="740" y="74" width="180" height="40" rx="6" class="lane"/>
+    <text x="830" y="92" text-anchor="middle" class="lane-label">messaging.Handler</text>
+    <text x="830" y="106" text-anchor="middle" class="lane-sub">NATS pub/sub</text>
+  </g>
+
+  <!-- Lifelines -->
+  <line x1="105" y1="118" x2="105" y2="610" class="lifeline"/>
+  <line x1="275" y1="118" x2="275" y2="610" class="lifeline"/>
+  <line x1="455" y1="118" x2="455" y2="610" class="lifeline"/>
+  <line x1="635" y1="118" x2="635" y2="610" class="lifeline"/>
+  <line x1="830" y1="118" x2="830" y2="610" class="lifeline"/>
+
+  <!-- Phase 1: poll cycle -->
+  <rect x="30" y="130" width="900" height="22" rx="4" class="phase-bg"/>
+  <text x="40" y="146" class="phase">POLL CYCLE  (every --rate seconds)</text>
+
+  <!-- 1. ticker -->
+  <path d="M30 168 H100" class="msg" marker-end="url(#seqarr)"/>
+  <text x="34" y="162" class="msg-label">ticker.C</text>
+
+  <!-- 2. main -> service.PollAll -->
+  <rect x="100" y="172" width="10" height="40" class="activation"/>
+  <path d="M110 180 H270" class="msg" marker-end="url(#seqarr)"/>
+  <text x="120" y="174" class="msg-label">PollAll(ctx)</text>
+
+  <!-- 3. service -> modbus.Open + Read -->
+  <rect x="270" y="184" width="10" height="80" class="activation"/>
+  <path d="M280 192 H450" class="msg" marker-end="url(#seqarr)"/>
+  <text x="290" y="186" class="msg-label">Open()</text>
+
+  <rect x="450" y="196" width="10" height="40" class="activation"/>
+  <path d="M280 220 H450" class="msg" marker-end="url(#seqarr)"/>
+  <text x="290" y="214" class="msg-label">ReadHoldingRegisters(addr, qty)</text>
+
+  <!-- 4. modbus -> device (off-lane, dashed) -->
+  <path d="M460 232 H540" class="msg" stroke-dasharray="4 4" marker-end="url(#seqarr)"/>
+  <text x="465" y="226" class="msg-label">Modbus TCP/UDP/Serial</text>
+
+  <path d="M540 246 H470" class="msg" stroke-dasharray="4 4" marker-end="url(#seqarr)"/>
+  <text x="475" y="262" class="msg-label">[]uint16 registers</text>
+
+  <!-- 5. service -> decoder -->
+  <path d="M280 280 H630" class="msg" marker-end="url(#seqarr)"/>
+  <text x="290" y="274" class="msg-label">NewRegisterDecoder(regs, endian).DecodeAt(...)</text>
+
+  <rect x="630" y="284" width="10" height="22" class="activation"/>
+  <path d="M630 300 H285" class="msg" marker-end="url(#seqarr)"/>
+  <text x="295" y="318" class="msg-label">typed value · ref.UpdateValue(v)</text>
+
+  <!-- 6. main -> service.PublishData -->
+  <path d="M110 350 H270" class="msg" marker-end="url(#seqarr)"/>
+  <text x="120" y="344" class="msg-label">PublishData(now)</text>
+  <rect x="270" y="342" width="10" height="40" class="activation"/>
+
+  <!-- 7. service -> messaging.Publish -->
+  <path d="M280 360 H825" class="msg-blue" marker-end="url(#seqarr-blue)"/>
+  <text x="290" y="354" class="msg-label-blue">Publish(device, payload)  →  modpoll.&lt;device&gt;.data</text>
+  <rect x="825" y="354" width="10" height="22" class="activation"/>
+
+  <!-- Note -->
+  <g>
+    <rect x="370" y="402" width="430" height="44" rx="6" class="note"/>
+    <text x="385" y="420" class="note-text">Coils / discrete inputs follow the same flow but use a CoilDecoder</text>
+    <text x="385" y="436" class="note-text">that slices bool[] groups; bit references (addr:bit) live on FC 3/4.</text>
+  </g>
+
+  <!-- Phase 2: write command -->
+  <rect x="30" y="462" width="900" height="22" rx="4" class="phase-bg"/>
+  <text x="40" y="478" class="phase">WRITE COMMAND  (whenever a message lands on modpoll.*.set)</text>
+
+  <!-- 1. NATS -> handler -->
+  <path d="M930 500 H840" class="msg-blue" marker-end="url(#seqarr-blue)"/>
+  <text x="845" y="494" class="msg-label-blue">nats msg</text>
+
+  <!-- 2. handler -> service via channel -->
+  <path d="M820 512 H285" class="msg-blue" marker-end="url(#seqarr-blue)"/>
+  <text x="320" y="506" class="msg-label-blue">IncomingCommand on Commands() channel</text>
+
+  <!-- 3. main reads channel, dispatches via service.ApplyCommand -->
+  <path d="M110 538 H270" class="msg" marker-end="url(#seqarr)"/>
+  <text x="120" y="532" class="msg-label">ApplyCommand(cmd)</text>
+  <rect x="270" y="530" width="10" height="40" class="activation"/>
+
+  <!-- 4. service -> modbus.Write -->
+  <path d="M280 558 H450" class="msg" marker-end="url(#seqarr)"/>
+  <text x="290" y="552" class="msg-label">WriteSingleCoil / WriteMultipleRegisters</text>
+  <rect x="450" y="550" width="10" height="22" class="activation"/>
+
+  <!-- 5. modbus -> device -->
+  <path d="M460 582 H540" class="msg" stroke-dasharray="4 4" marker-end="url(#seqarr)"/>
+  <text x="465" y="576" class="msg-label">Modbus write</text>
+
+  <!-- 6. ack -->
+  <path d="M540 596 H470" class="msg" stroke-dasharray="4 4" marker-end="url(#seqarr)"/>
+  <text x="475" y="610" class="msg-label">ack</text>
+</svg>
