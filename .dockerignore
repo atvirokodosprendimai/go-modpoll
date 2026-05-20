@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.vscode
+*.md
+!README.md
+*.test
+*.out
+*.log
+modpoll
+/dist
+/tmp
