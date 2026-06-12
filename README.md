@@ -342,12 +342,15 @@ Works on both `holding_register` and `input_register`.
 
 ### Endian variants (byte order × word order)
 
-| String  | Byte order | Word order | Used by                                   |
-| ------- | ---------- | ---------- | ----------------------------------------- |
-| `BE_BE` | big        | big        | Default — most PLCs / Siemens / Schneider |
-| `LE_BE` | little     | big        | Some inverter firmwares                   |
-| `BE_LE` | big        | little     | Many power meters and HVAC controllers    |
-| `LE_LE` | little     | little     | Rare; some legacy gateways                |
+| String  | Byte order | Word order | Used by                                                            |
+| ------- | ---------- | ---------- | ------------------------------------------------------------------ |
+| `BE_BE` | big        | big        | Most PLCs / Siemens / Schneider                                    |
+| `LE_BE` | little     | big        | Some inverter firmwares                                            |
+| `BE_LE` | big        | little     | **Default.** EPEVER, many power meters, HVAC controllers           |
+| `LE_LE` | little     | little     | Rare; some legacy gateways                                         |
+| `BE`    | big        | little     | Short form of `BE_LE`                                              |
+| `LE`    | little     | little     | Short form of `LE_LE`                                              |
+| *empty* | big        | little     | Same as `BE_LE` — matches python `modpoll`'s pymodbus default       |
 
 Set per-poller in the CSV:
 
