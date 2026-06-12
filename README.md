@@ -154,6 +154,13 @@ nats pub 'modpoll.modsim01.set' \
 
 Supported `object_type` values: `coil`, `holding_register`.
 
+For `holding_register` the `value` field is auto-detected:
+- A scalar number → `WriteSingleRegister` (FC6).
+- An array of numbers → `WriteMultipleRegisters` (FC16) starting at `address`.
+
+Writes acquire the Modbus client briefly, so they interleave cleanly with
+ongoing polling.
+
 ## CSV configuration
 
 Each row is one of `device`, `poll` or `ref`. Lines starting with `#` and
@@ -245,6 +252,171 @@ See `examples/modsim.csv` and `examples/config_template.csv` for full samples.
   --config examples/modsim.csv
 ```
 
+### RTU over TCP (raw RTU frames in a TCP socket)
+
+When a serial gateway speaks raw RTU frames over a TCP socket (no Modbus TCP
+MBAP header), pass the `rtuovertcp://` URL directly to `--serial`. The library
+detects the scheme and skips the local serial port driver entirely — no
+socat needed.
+
+```bash
+./modpoll --serial 'rtuovertcp://192.168.255.1:5014' \
+  --config examples/modsim.csv
+```
+
+This is different from `--tcp` (which speaks Modbus TCP) and from
+`socket://` (which is a serial-over-TCP tunnel with rfc2217 negotiation).
+
+### Virtual COM port (socat pty bound to a TCP gateway)
+
+If another tool needs a real device file, expose the TCP gateway as a
+pseudo-terminal with `socat` and point `--serial` at the pty path:
+
+```bash
+# In one terminal — keep socat running
+socat -d -d -x pty,link=/tmp/com5014,raw tcp:192.168.255.1:5014
+
+# In another terminal — poll through the pty
+./modpoll --serial /tmp/com5014 --serial-baud 9600 \
+  --config examples/modsim.csv
+```
+
+Internally modpoll wraps the path as `rtu:///tmp/com5014`. Prefer the
+`rtuovertcp://` form above when only modpoll needs the link — fewer moving
+parts and no extra process.
+
+### Multiple RTU slaves on one serial bus
+
+A single serial transport carries many slaves; each gets its own `device`
+row with a distinct `unit_id`. modpoll polls them sequentially inside one
+cycle (separated by `--interval`).
+
+```csv
+device,meter_a,1,,
+poll,holding_register,40000,2,BE_BE
+ref,kwh,40000,uint32,r,kWh
+
+device,meter_b,2,,
+poll,holding_register,40000,2,BE_BE
+ref,kwh,40000,uint32,r,kWh
+```
+
+```bash
+./modpoll --serial /dev/ttyUSB0 --serial-baud 9600 \
+  --interval 0.25 --config bus.csv
+```
+
+### Poll discrete inputs and input registers (read-only registers)
+
+```csv
+device,plc01,1,,
+poll,discrete_input,10000,16,BE_BE
+ref,door_open,10000,bool,r
+ref,alarm_block,10001,bool8,r
+
+poll,input_register,30000,4,BE_BE
+ref,temperature,30000,float32,r,degC,0.1
+ref,humidity,30002,uint16,r,pct
+```
+
+`discrete_input` (FC2) and `input_register` (FC4) are read-only on the
+Modbus side. `w` / `rw` flags on their refs are accepted but a write command
+will fail — use `holding_register` (FC3) or `coil` (FC1) for writable points.
+
+### Bit-pack a status word (`addr:bit` syntax)
+
+A single register often holds 16 independent flags. Decode each bit as its
+own boolean reference:
+
+```csv
+device,inverter,1,,
+poll,holding_register,40020,1,BE_BE
+ref,fault_overcurrent,40020:0,bool,r
+ref,fault_overtemp,40020:1,bool,r
+ref,run_state,40020:8,bool,r
+ref,grid_ok,40020:15,bool,r
+```
+
+Bit index is `0..15`, LSB-first. Only `dtype=bool` is allowed with `:bit`.
+Works on both `holding_register` and `input_register`.
+
+### Endian variants (byte order × word order)
+
+| String  | Byte order | Word order | Used by                                   |
+| ------- | ---------- | ---------- | ----------------------------------------- |
+| `BE_BE` | big        | big        | Default — most PLCs / Siemens / Schneider |
+| `LE_BE` | little     | big        | Some inverter firmwares                   |
+| `BE_LE` | big        | little     | Many power meters and HVAC controllers    |
+| `LE_LE` | little     | little     | Rare; some legacy gateways                |
+
+Set per-poller in the CSV:
+
+```csv
+poll,holding_register,40000,4,BE_LE
+ref,energy_total,40000,uint32,r,Wh
+```
+
+### Scale factor and engineering units
+
+Multiply raw integers into engineering units and tag the published payload
+with a unit suffix (`name|unit`):
+
+```csv
+ref,current,40000,uint16,r,A,0.01     # 0..65535 → 0.00 .. 655.35 A
+ref,energy,40010,uint32,r,kWh,0.001   # raw Wh → kWh
+```
+
+Numeric refs apply `value * scale` in Go; booleans, strings and bit refs
+ignore scale.
+
+### Fixed-length strings (`stringNN`)
+
+`stringNN` decodes NN bytes from consecutive registers (2 bytes per
+register), trims trailing NULs, and emits a Go string. Provide enough
+poller size to cover the bytes — width is `ceil(NN / 2)` registers.
+
+```csv
+poll,holding_register,40050,8,BE_BE
+ref,serial_no,40050,string16,r
+ref,firmware,40058,string8,r
+```
+
+### Hex and binary addresses in CSV
+
+Addresses, unit IDs, and poller starts accept Go's standard numeric
+prefixes — handy when datasheets quote registers in hex:
+
+```csv
+device,plc02,0x01,,
+poll,holding_register,0x9C40,4,BE_BE
+ref,setpoint,0x9C40,uint16,rw
+```
+
+`0x...` (hex), `0b...` (binary) and `0o...` (octal) all parse. Bit indices
+after `:` are decimal only.
+
+### Initial delay before the first poll
+
+Useful when launched at boot before a serial gateway is fully up:
+
+```bash
+./modpoll --delay 10 \
+  --tcp 192.168.1.10 \
+  --config examples/modsim.csv
+```
+
+### Slow link / tune `--interval` between pollers
+
+`--interval` is the pause between *two pollers in the same cycle* (e.g.
+between slaves on an RTU bus, or between two register blocks on the same
+device). `--rate` is the time between full cycles.
+
+```bash
+./modpoll --rate 30 --interval 1.5 \
+  --serial /dev/ttyUSB0 --serial-baud 9600 \
+  --config bus.csv
+```
+
 ### Publish to a local NATS server
 
 ```bash
@@ -277,6 +449,26 @@ nats sub 'modpoll.*.data'
 
 # Each reference lands on:  modpoll.<device>.data.<reference_name>
 nats sub 'modpoll.modsim01.data.>'
+```
+
+### NATS URL via environment variable
+
+The `--nats-url` flag also reads from the `NATS_URL` env var, which keeps
+secrets out of process listings and is handy in containers:
+
+```bash
+export NATS_URL=nats://broker.example.com:4222
+./modpoll --tcp 192.168.1.10 --config examples/modsim.csv
+```
+
+### Custom client name in NATS monitoring
+
+`--nats-name` controls how the modpoll process appears in `nats server
+connections` output and `nats-top`:
+
+```bash
+./modpoll --nats-url nats://broker:4222 --nats-name modpoll-site42 \
+  --tcp 192.168.1.10 --config examples/modsim.csv
 ```
 
 ### Authenticated NATS connections
@@ -388,6 +580,31 @@ Body shape (compact JSON):
 `--export` and `--export-http` can be set together — they share the same
 snapshot.
 
+### Run all three sinks at once (file + HTTP + NATS)
+
+The publisher, file exporter and HTTP poster are independent. Combine them
+to mirror data to multiple consumers in one pass:
+
+```bash
+./modpoll --tcp 192.168.1.10 \
+  --config examples/modsim.csv \
+  --rate 5 --timestamp \
+  --nats-url nats://broker:4222 \
+  --export /var/lib/modpoll/latest.json \
+  --export-http https://ingest.example.com/api/modpoll \
+  --diagnostics-rate 60
+```
+
+### One-shot snapshot to a file
+
+Combine `--once` with `--export` for a cron-friendly snapshot:
+
+```bash
+./modpoll --once --tcp 192.168.1.10 \
+  --config examples/modsim.csv \
+  --export /tmp/snapshot.json --timestamp
+```
+
 ### Load multiple config files / multiple devices
 
 ```bash
@@ -430,6 +647,40 @@ snapshot.
 # In another terminal, send a write command
 nats pub 'modpoll.modsim01.set' \
   '{"object_type":"holding_register","address":40001,"value":42}'
+```
+
+### Resilience and reconnect behaviour
+
+- **NATS** reconnects automatically forever (`MaxReconnects = -1`,
+  `ReconnectWait = 2s`). In-flight publishes during a disconnect are
+  buffered by the NATS client; on shutdown modpoll calls `Drain` with a
+  5-second budget to flush them.
+- **Modbus** the client is opened lazily on every poll cycle and closed at
+  the end, so a transient TCP/serial drop only loses the cycle in flight.
+- **Per-poller backoff** with `--autoremove`: three consecutive failures
+  disable that poller for the rest of the process lifetime (others keep
+  running). Restart modpoll to re-enable.
+
+### Run inside systemd
+
+```ini
+# /etc/systemd/system/modpoll.service
+[Unit]
+Description=modpoll Modbus->NATS bridge
+After=network-online.target
+
+[Service]
+Environment=NATS_URL=nats://broker.internal:4222
+ExecStart=/usr/local/bin/modpoll -d \
+  --tcp 192.168.1.10 \
+  --config /etc/modpoll/site.csv \
+  --delay 5 --rate 5 --autoremove --diagnostics-rate 60
+Restart=always
+RestartSec=5
+User=modpoll
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 ## Docker
